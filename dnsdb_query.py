@@ -62,7 +62,6 @@ class DnsdbClient(object):
             path = 'rrset/name/%s/%s' % (quote(oname), rrtype)
         else:
             path = 'rrset/name/%s' % quote(oname)
-        print path
         return self._query(path)
 
     def query_rdata_name(self, rdata_name, rrtype=None):
