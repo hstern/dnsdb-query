@@ -35,14 +35,6 @@ DEFAULT_DNSDB_SERVER = 'https://api.dnsdb.info'
 
 locale.setlocale(locale.LC_ALL, '')
 
-dns_types = '''
-    A A6 AAAA AFSDB ANY APL ATMA AXFR CAA CDS CERT CNAME DHCID DLV DNAME
-    DNSKEY DS EID GPOS HINFO HIP IPSECKEY ISDN IXFR KEY KX LOC MAILA MAILB
-    MB MD MF MG MINFO MR MX NAPTR NIMLOC NINFO NS NSAP NSAP_PTR NSEC NSEC3
-    NSEC3PARAM NULL NXT OPT PTR PX RKEY RP RRSIG RT SIG SINK SOA SPF SRV
-    SSHFP TA TALINK TKEY TSIG TXT URI WKS X25'''.split()
-rrtype_re = re.compile(r'/(%s)(?:$|/)' % "|".join(dns_types), re.I)
-
 class DnsdbClient(object):
     def __init__(self, server, apikey, limit=None, json=False):
         self.server = server
@@ -94,8 +86,17 @@ class DnsdbClient(object):
             sys.stderr.write(str(e) + '\n')
         return res
 
+dns_types = '''
+    A A6 AAAA AFSDB ANY APL ATMA AXFR CAA CDS CERT CNAME DHCID DLV DNAME
+    DNSKEY DS EID GPOS HINFO HIP IPSECKEY ISDN IXFR KEY KX LOC MAILA MAILB
+    MB MD MF MG MINFO MR MX NAPTR NIMLOC NINFO NS NSAP NSAP_PTR NSEC NSEC3
+    NSEC3PARAM NULL NXT OPT PTR PX RKEY RP RRSIG RT SIG SINK SOA SPF SRV
+    SSHFP TA TALINK TKEY TSIG TXT URI WKS X25'''.split()
+
+param_split_re = re.compile(r'/(%s)(?:$|/)' % "|".join(dns_types), re.I)
+
 def split_rrset(rrset):
-    parts = rrtype_re.split(rrset, maxsplit=1)
+    parts = param_split_re.split(rrset, maxsplit=1)
     if len(parts) == 1:
         return (parts[0],None,None)
     else:
@@ -103,7 +104,7 @@ def split_rrset(rrset):
         return parts
 
 def split_rdata(rrset):
-    parts = rrtype_re.split(rrset, maxsplit=1)
+    parts = param_split_re.split(rrset, maxsplit=1)
     if parts[2]:
         raise ValueError, "Invalid rrset: '%s'" % rrset
 
