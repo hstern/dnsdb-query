@@ -33,9 +33,6 @@ except ImportError:
 DEFAULT_CONFIG_FILE = '/etc/dnsdb-query.conf'
 DEFAULT_DNSDB_SERVER = 'https://api.dnsdb.info'
 
-cfg = None
-options = None
-
 locale.setlocale(locale.LC_ALL, '')
 
 dns_types = '''
@@ -221,9 +218,6 @@ def filter_after(res_list, after_time):
     return new_res_list
 
 def main():
-    global cfg
-    global options
-
     parser = optparse.OptionParser()
     parser.add_option('-c', '--config', dest='config', type='string',
         help='config file', default=DEFAULT_CONFIG_FILE)
