@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import calendar
+import errno
 import locale
 import optparse
 import os
@@ -30,7 +31,7 @@ try:
 except ImportError:
     import simplejson as json
 
-DEFAULT_CONFIG_FILE = '/etc/dnsdb-query.conf'
+DEFAULT_CONFIG_FILES = filter(os.path.isfile, ('/etc/dnsdb-query.conf', os.path.expanduser('~/.dnsdb-query.conf')))
 DEFAULT_DNSDB_SERVER = 'https://api.dnsdb.info'
 
 locale.setlocale(locale.LC_ALL, '')
@@ -148,13 +149,11 @@ def rrset_to_text(m):
 def rdata_to_text(m):
     return '%s IN %s %s' % (m['rrname'], m['rrtype'], m['rdata'])
 
-def parse_config(cfg_fname):
+def parse_config(cfg_files):
     config = {}
-    cfg_files = filter(os.path.isfile,
-            (cfg_fname, os.path.expanduser('~/.dnsdb-query.conf')))
 
     if not cfg_files:
-        raise IOError, 2, 'dnsdb_query: No config files found'
+        raise IOError(errno.ENOENT, 'No config files to parse.')
 
     for fname in cfg_files:
         for line in open(fname):
@@ -219,8 +218,8 @@ def filter_after(res_list, after_time):
 
 def main():
     parser = optparse.OptionParser()
-    parser.add_option('-c', '--config', dest='config', type='string',
-        help='config file', default=DEFAULT_CONFIG_FILE)
+    parser.add_option('-c', '--config', dest='config', 
+        help='config file', action='append')
     parser.add_option('-r', '--rrset', dest='rrset', type='string',
         help='rrset <ONAME>[/<RRTYPE>[/BAILIWICK]]')
     parser.add_option('-n', '--rdataname', dest='rdata_name', type='string',
@@ -244,11 +243,10 @@ def main():
         sys.exit(1)
 
     try:
-        cfg = parse_config(options.config)
+        cfg = parse_config(options.config or DEFAULT_CONFIG_FILES)
     except IOError, e:
-        sys.stderr.write(e.message)
+        print >>sys.stderr, str(e)
         sys.exit(1)
-
 
     if not 'DNSDB_SERVER' in cfg:
         cfg['DNSDB_SERVER'] = DEFAULT_DNSDB_SERVER
