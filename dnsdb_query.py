@@ -35,6 +35,9 @@ DEFAULT_DNSDB_SERVER = 'https://api.dnsdb.info'
 
 locale.setlocale(locale.LC_ALL, '')
 
+class QueryError(Exception):
+    pass
+
 class DnsdbClient(object):
     def __init__(self, server, apikey, limit=None):
         self.server = server
@@ -79,7 +82,7 @@ class DnsdbClient(object):
                     break
                 res.append(json.loads(line))
         except urllib2.HTTPError, e:
-            sys.stderr.write(str(e) + '\n')
+            raise QueryError, e.message, sys.exc_traceback
         return res
 
 dns_types = '''
@@ -254,17 +257,21 @@ def main():
         sys.exit(1)
 
     client = DnsdbClient(cfg['DNSDB_SERVER'], cfg['APIKEY'], options.limit)
-    if options.rrset:
-        res_list = client.query_rrset(*split_rrset(options.rrset))
-        fmt_func = rrset_to_text
-    elif options.rdata_name:
-        res_list = client.query_rdata_name(*split_rdata(options.rdata_name))
-        fmt_func = rdata_to_text
-    elif options.rdata_ip:
-        res_list = client.query_rdata_ip(options.rdata_ip)
-        fmt_func = rdata_to_text
-    else:
-        parser.print_help()
+    try:
+        if options.rrset:
+            res_list = client.query_rrset(*split_rrset(options.rrset))
+            fmt_func = rrset_to_text
+        elif options.rdata_name:
+            res_list = client.query_rdata_name(*split_rdata(options.rdata_name))
+            fmt_func = rdata_to_text
+        elif options.rdata_ip:
+            res_list = client.query_rdata_ip(options.rdata_ip)
+            fmt_func = rdata_to_text
+        else:
+            parser.print_help()
+            sys.exit(1)
+    except QueryError, e:
+        print >>sys.stderr, e.message
         sys.exit(1)
 
     if options.json:
