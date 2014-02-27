@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright (c) 2013 by Farsight Security, Inc.
+# Copyright (c) 2013-2014 by Farsight Security, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +13,32 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+"""
+Reference implementation of the DNSDB HTTP API.
+
+Copyright (c) 2013-2014 by U{Farsight Security, Inc.
+<https://www.farsightsecurity.com/>}
+
+See U{https://api.dnsdb.info/} for more details about the DNSDB API.  You
+may obtain new versions of this tool from
+U{https://github.com/dnsdb/dnsdb-query}.
+
+JSON output is compatible with the U{Passive DNS Common Output Format
+<http://tools.ietf.org/html/draft-dulaunoy-kaplan-passive-dns-cof-01>}.
+
+Usage::
+
+    from dnsdb_query import DnsdbClient
+
+    server='https://api.dnsdb.info'
+    apikey='d41d8cd98f00b204e9800998ecf8427e'
+
+    client = DnsdbClient(server,apikey)
+    for rrset in client.query_rrset('www.dnsdb.info'):
+        # rrset is a decoded JSON blob
+        print repr(rrset)
+"""
 
 import calendar
 import errno
@@ -37,15 +63,49 @@ DEFAULT_DNSDB_SERVER = 'https://api.dnsdb.info'
 locale.setlocale(locale.LC_ALL, '')
 
 class QueryError(Exception):
-    pass
+    """
+    Error raised if a communication error occurs with the DNSDB server,
+    such as if authentication fails.
+    """
 
 class DnsdbClient(object):
+    """
+    Python client for the DNSDB API.
+    """
+
     def __init__(self, server, apikey, limit=None):
+        """
+        @param server: URL to DNSDB server, no trailing slash
+        @type server: string (url)
+
+        @param apikey: API key, long hexadecimal string
+        @type apikey: string
+
+        @param limit: Maximum number of rows per query
+        @type limit: int
+        """
         self.server = server
         self.apikey = apikey
         self.limit = limit
 
     def query_rrset(self, oname, rrtype=None, bailiwick=None):
+        """
+        Look up an rrset in DNSDB.
+
+        @param oname: Search for this name.  May include wildcards.
+        @type oname: string
+
+        @param rrtype: A DNS rrtype
+        @type rrtype: string
+
+        @param bailiwick: Limit the search to this bailiwick.
+        @type bailiwick: string
+
+        @return: a list of decoded json blobs
+        @rtype: list(dict)
+
+        @raise QueryError: if the DNSDB query fails
+        """
         if bailiwick:
             if not rrtype:
                 rrtype = 'ANY'
@@ -57,6 +117,20 @@ class DnsdbClient(object):
         return self._query(path)
 
     def query_rdata_name(self, rdata_name, rrtype=None):
+        """
+        Look up an rdata in DNSDB by name.
+
+        @param rdata_name: Search for this name.  May include wildcards.
+        @type rdata_name: string
+
+        @param rrtype: A DNS rrtype
+        @type rrtype: string
+
+        @return: a list of decoded json blobs
+        @rtype: list(dict)
+
+        @raise QueryError: if the DNSDB query fails
+        """
         if rrtype:
             path = 'rdata/name/%s/%s' % (quote(rdata_name), rrtype)
         else:
@@ -64,10 +138,32 @@ class DnsdbClient(object):
         return self._query(path)
 
     def query_rdata_ip(self, rdata_ip):
+        """
+        Look up an rdata in DNSDB by ip.
+
+        @param rdata_ip: Search for this ip.  May include wildcards.
+        @type rdata_ip: string
+
+        @return: a list of decoded json blobs
+        @rtype: list(dict)
+
+        @raise QueryError: if the DNSDB query fails
+        """
         path = 'rdata/ip/%s' % rdata_ip.replace('/', ',')
         return self._query(path)
 
     def _query(self, path):
+        """
+        Internal function to run a query against DNSDB.
+
+        @param path: URL in dnsdb to query
+        @type path: string
+
+        @return: a list of decoded json blobs
+        @rtype: list(dict)
+
+        @raise QueryError: if the DNSDB query fails
+        """
         res = []
         url = '%s/lookup/%s' % (self.server, path)
         if self.limit:
@@ -92,10 +188,28 @@ dns_types = '''
     MB MD MF MG MINFO MR MX NAPTR NIMLOC NINFO NS NSAP NSAP_PTR NSEC NSEC3
     NSEC3PARAM NULL NXT OPT PTR PX RKEY RP RRSIG RT SIG SINK SOA SPF SRV
     SSHFP TA TALINK TKEY TSIG TXT URI WKS X25'''.split()
+"""
+@var dns_types: All DNS types supported by libwdns 0.5.
+"""
 
 param_split_re = re.compile(r'/(%s)(?:$|/)' % "|".join(dns_types), re.I)
+"""
+@var param_split_re: Regular expression that is used to split rrset and rdata
+input parameters.  Needed because they are slash delimited and both rname and
+bailiwick may contain slashes.
+"""
 
 def split_rrset(rrset):
+    """
+    Takes a parameter of the form 'rname/rrtype/bailiwick' and splits it
+    into three strings, working around slashes that may be embedded in rname
+    or bailiwick.
+
+    @param rrset: The rrset to split.
+    @type rrset: string
+
+    @return (rname, rrtype, bailiwick)
+    """
     parts = param_split_re.split(rrset, maxsplit=1)
     if len(parts) == 1:
         return (parts[0],None,None)
@@ -104,6 +218,17 @@ def split_rrset(rrset):
         return parts
 
 def split_rdata(rrset):
+    """
+    Takes a parameter of the form 'rname/rrtype' and splits it
+    into two strings, working around slashes that may be embedded in
+    rname or bailiwick.
+
+    @param rrset: The rrset to split.
+    @type rrset: string
+
+    @return: (rname, rrtype)
+    @rtype: collection
+    """
     parts = param_split_re.split(rrset, maxsplit=1)
     if parts[2]:
         raise ValueError, "Invalid rrset: '%s'" % rrset
@@ -115,12 +240,37 @@ def split_rdata(rrset):
         return parts[:2]
 
 def quote(path):
+    """
+    Wraps urllib.quote with no safe characters such that slashes are
+    escaped.
+
+    @type path: string
+    @rtype: string
+    """
     return urllib.quote(path, safe='')
 
 def sec_to_text(ts):
+    """
+    Converts a UNIX timesetamp to a human-readable date string in UTC.
+
+    @param ts: UNIX timestamp
+    @type ts: int
+
+    @return: formatted timestamp in UTC
+    @rtype: string
+    """
     return time.strftime('%Y-%m-%d %H:%M:%S -0000', time.gmtime(ts))
 
 def rrset_to_text(m):
+    """
+    Returns the presentation format of an rrset blob.
+
+    @param m: decoded JSON blob
+    @type m: dict
+
+    @return: presentation format of an rrset
+    @rtype: string
+    """
     s = StringIO.StringIO()
 
     if 'bailiwick' in m:
@@ -147,9 +297,36 @@ def rrset_to_text(m):
     return s.read()
 
 def rdata_to_text(m):
+    """
+    Returns the presentation format of an rdata blob.  It is
+    formatted like a record in a zone file.
+
+    @param m: decoded JSON blob
+    @type m: dict
+
+    @return: presentation format of an rdata blob
+    @rtype: string
+    """
     return '%s IN %s %s' % (m['rrname'], m['rrtype'], m['rdata'])
 
 def parse_config(cfg_files):
+    """
+    Loads configuration information from a list of configuration files.
+    If a key occurs in a subsequent file it is replaced.
+
+    Configuration files should be of the form::
+    
+        KEY="value"
+
+    @param cfg_files: List of configuration files to parse.
+    @type cfg_files: list(string)
+
+    @return: Dictionary of configuration options.
+    @rtype: dict
+
+    @raise IOError: If a configuration file is missing or if cfg_files
+    is empty.
+    """
     config = {}
 
     if not cfg_files:
@@ -164,6 +341,17 @@ def parse_config(cfg_files):
     return config
 
 def time_parse(s):
+    """
+    Parses a time value and returns a UNIX timestamp.
+
+    @param s: time value (int, Y-M-D, or Y-M-D H:M:S)
+    @type s: string
+
+    @return: A UNIX timestamp
+    @rtype: int
+
+    @raise ValueError: If the time value is not parseable.
+    """
     try:
         epoch = int(s)
         return epoch
@@ -185,6 +373,20 @@ def time_parse(s):
     raise ValueError, 'Invalid time: "%s"' % s
 
 def filter_before(res_list, before_time):
+    """
+    Filters out records older than before_time.
+
+    @param res_list: list of json blobs
+    @type res_list: list(dict)
+
+    @param before_time: UNIX timestamp or Y-M-D or Y-M-D H:M:S
+    @type before_time: int, string
+
+    @return: All blobs with time_first < before_time
+    @rtype: list(dict)
+
+    @raise ValueError: if before_time is unparseable by time_parse
+    """
     before_time = time_parse(before_time)
     new_res_list = []
 
@@ -201,6 +403,20 @@ def filter_before(res_list, before_time):
     return new_res_list
 
 def filter_after(res_list, after_time):
+    """
+    Filters out records newer than after_time.
+
+    @param res_list: list of json blobs
+    @type res_list: list(dict)
+
+    @param before_time: UNIX timestamp or Y-M-D or Y-M-D H:M:S
+    @type before_time: int, string
+
+    @return: All blobs with time_first > before_time
+    @rtype: list(dict)
+
+    @raise ValueError: if after_time is unparseable by time_parse
+    """
     after_time = time_parse(after_time)
     new_res_list = []
 
