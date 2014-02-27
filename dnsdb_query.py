@@ -24,7 +24,7 @@ import sys
 import time
 import urllib
 import urllib2
-from cStringIO import StringIO
+import cStringIO as StringIO
 
 try:
     import json
@@ -121,7 +121,7 @@ def sec_to_text(ts):
     return time.strftime('%Y-%m-%d %H:%M:%S -0000', time.gmtime(ts))
 
 def rrset_to_text(m):
-    s = StringIO()
+    s = StringIO.StringIO()
 
     if 'bailiwick' in m:
         s.write(';;  bailiwick: %s\n' % m['bailiwick'])
